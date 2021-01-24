@@ -1,38 +1,38 @@
 ##############
 # StateLabel #
 ##############
-immutable StateLabel{N}
+struct StateLabel{N}
     label::NTuple{N}
-    hash::Uint64
-    StateLabel(label::NTuple{N}) = new(label, hash(label))
-    StateLabel(label::NTuple{N}, h::Uint64) = new(label, h)
+    hash::UInt64
+    StateLabel(label::NTuple{N}) where N = new{N}(label, hash(label)) 
+    StateLabel(label::NTuple{N}, h::UInt64) where N = new{N}(label, h) 
 end
 
 StateLabel(s::StateLabel) = s
-StateLabel{N}(label::NTuple{N}) = StateLabel{N}(label)
+# StateLabel{N}(label::NTuple{N}) = StateLabel{N}(label)
 StateLabel(i...) = StateLabel(i)
 
-nfactors{N}(::Type{StateLabel{N}}) = N
+nfactors(::Type{StateLabel{N}}) where N = N
 Base.getindex(s::StateLabel, i) = s.label[i]
 Base.getindex(s::StateLabel, arr::AbstractArray) = s.label[arr]
 
-Base.copy{N}(s::StateLabel{N}) = StateLabel{N}(s.label, s.hash)
+Base.copy(s::StateLabel{N}) where N = StateLabel{N}(s.label, s.hash)
 Base.hash(s::StateLabel) = s.hash
-Base.hash(s::StateLabel, h::Uint64) = hash(hash(s), h)
+Base.hash(s::StateLabel, h::UInt64) = hash(hash(s), h)
 
-Base.(:(==)){N}(a::StateLabel{N},b::StateLabel{N}) = hash(a) == hash(b)
+Base.:(==)(a::StateLabel{N},b::StateLabel{N}) where N = hash(a) == hash(b)
 
-Base.start(s::StateLabel) = start(s.label)
-Base.next(s::StateLabel, i) = next(s.label, i)
-Base.done(s::StateLabel, i) = done(s.label, i)
+Base.iterate(s::StateLabel) = iterate(s.label)
+Base.iterate(s::StateLabel, i) = iterate(s.label, i)
+# Base.done(s::StateLabel, i) = done(s.label, i)
 
 Base.first(s::StateLabel) = first(s.label)
 Base.last(s::StateLabel) = last(s.label)
-Base.endof(s::StateLabel) = endof(s.label)
+# Base.endof(s::StateLabel) = endof(s.label)
 
-Base.length{N}(::StateLabel{N}) = N
+Base.length(::StateLabel{N}) where N = N
 
-Base.map(f::Union(Function,DataType), s::StateLabel) = StateLabel(map(f, s.label))
+Base.map(f::Union{Function,DataType}, s::StateLabel) = StateLabel(map(f, s.label))
 
 tensor(a::StateLabel, b::StateLabel) = StateLabel(tuple(a.label..., b.label...))
 
@@ -43,34 +43,34 @@ Base.show(io::IO, s::StateLabel) = print(io, repr(s))
 ##############
 # OpLabel #
 ##############
-immutable OpLabel{N}
+struct OpLabel{N}
     k::StateLabel{N}
     b::StateLabel{N}
-    hash::Uint64
-    OpLabel(k::StateLabel{N}, b::StateLabel{N}) = new(k, b, hash(k, hash(b)))
-    OpLabel(k::StateLabel{N}, b::StateLabel{N}, h::Uint64) = new(k, b, h)
+    hash::UInt64
+    OpLabel(k::StateLabel{N}, b::StateLabel{N}) where N = new{N}(k, b, hash(k, hash(b)))
+    OpLabel(k::StateLabel{N}, b::StateLabel{N}, h::UInt64) where N = new{N}(k, b, h)
 end
 
 OpLabel(op::OpLabel) = op
 OpLabel(::StateLabel, ::StateLabel) = error("OpLabel can only be constructed if both StateLabels have the same number of factors")
-OpLabel{N}(k::StateLabel{N}, b::StateLabel{N}) = OpLabel{N}(k, b)
+# OpLabel(k::StateLabel{N}, b::StateLabel{N}) where N = OpLabel{N}(k, b)
 OpLabel(k, b) = OpLabel(StateLabel(k), StateLabel(b))
 
 klabel(o::OpLabel) = o.k
 blabel(o::OpLabel) = o.b
 
-Base.copy{N}(o::OpLabel{N}) = OpLabel{N}(o.k, o.b, o.hash)
+Base.copy(o::OpLabel{N}) where N = OpLabel{N}(o.k, o.b, o.hash)
 Base.hash(o::OpLabel) = o.hash
-Base.hash(o::OpLabel, h::Uint64) = hash(hash(o), h)
+Base.hash(o::OpLabel, h::UInt64) = hash(hash(o), h)
 
-Base.(:(==)){N}(a::OpLabel{N}, b::OpLabel{N}) = hash(a) == hash(b)
+Base.:(==)(a::OpLabel{N}, b::OpLabel{N})  where N = hash(a) == hash(b)
 
-Base.length{N}(::OpLabel{N}) = N
+Base.length(::OpLabel{N}) where N = N
 
-Base.ctranspose(o::OpLabel) = OpLabel(o.b, o.k)
+Base.adjoint(o::OpLabel) = OpLabel(o.b, o.k)
 tensor(o1::OpLabel, o2::OpLabel) = OpLabel(tensor(o1.k, o2.k), tensor(o1.b, o2.b))
 
-ptranspose{N}(k::StateLabel{N}, b::StateLabel{N}, i) = OpLabel{N}(setindex(k, b[i], i), setindex(b, k[i], i))
+ptranspose(k::StateLabel{N}, b::StateLabel{N}, i) where N = OpLabel{N}(setindex(k, b[i], i), setindex(b, k[i], i))
 ptranspose(o::OpLabel, i) = ptranspose(o.k, o.b, i)
 ptranspose_dual(o::OpLabel, i) = ptranspose(o.b, o.k, i)
 
@@ -93,7 +93,7 @@ second(t) = t[2]
 except(label::StateLabel, i) = StateLabel(label[1:i-1]..., label[i+1:end]...)
 setindex(label::StateLabel, x, y) = StateLabel(label[1:y-1]..., x, label[y+1:end]...)
 
-permute{N}(label::StateLabel{N}, perm::Vector) = StateLabel{N}(label[perm])
+permute(label::StateLabel{N}, perm::Vector) where N = StateLabel{N}(label[perm])
 permute(o::OpLabel, perm::Vector) = OpLabel(permute(o.k, perm), permute(o.b, perm))
 
 function switch!(arr, i, j)
@@ -102,7 +102,7 @@ function switch!(arr, i, j)
     arr[j] = tmp
     return arr
 end
-switch{N}(label::StateLabel{N}, i, j) =  StateLabel{N}(label[switch!([1:N], i, j)])
+switch(label::StateLabel{N}, i, j) where N =  StateLabel{N}(label[switch!([1:N], i, j)])
 
 switch(o::OpLabel, i, j) = OpLabel(switch(o.k, i, j), switch(o.b, i, j))
 

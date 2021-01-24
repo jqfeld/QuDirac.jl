@@ -7,8 +7,8 @@ function tensordict!(result, a, b)
     return result
 end
 
-tensor_result{N,M,T,V}(::StateDict{N,T}, ::StateDict{M,V}) = StateDict{N+M, promote_type(T,V)}()
-tensor_result{N,M,T,V}(::OpDict{N,T}, ::OpDict{M,V}) = OpDict{N+M, promote_type(T,V)}()
+tensor_result(::StateDict{N,T}, ::StateDict{M,V}) where {N,M,T,V} = StateDict{N+M, promote_type(T,V)}()
+tensor_result(::OpDict{N,T}, ::OpDict{M,V}) where {N,M,T,V} = OpDict{N+M, promote_type(T,V)}()
 tensordict(a, b) = tensordict!(tensor_result(a, b), a, b)
 
 function add_merge!(result, other)
@@ -25,7 +25,7 @@ function sub_merge!(result, other)
     return result
 end
 
-merge_result{K,T,V}(::Dict{K,T}, ::Dict{K,V}) = Dict{K, promote_type(T,V)}()
+merge_result(::Dict{K,T}, ::Dict{K,V}) where {K,T,V} = Dict{K, promote_type(T,V)}()
 add_merge(a, b) = add_merge!(merge(merge_result(a,b), a), b)
 sub_merge(a, b) = sub_merge!(merge(merge_result(a,b), a), b)
 
@@ -37,7 +37,7 @@ function dscale!(result, d, c)
 end
 dscale!(d, c) = dscale!(d, d, c)
 
-scale_result{K,V,T}(::Dict{K,V}, ::T) = Dict{K, promote_type(T,V)}()
+scale_result(::Dict{K,V}, ::T) where {K,V,T} = Dict{K, promote_type(T,V)}()
 dscale(d, c) = dscale!(scale_result(d,c), d, c)
 
 function add_to_dict!(dict, label, c)

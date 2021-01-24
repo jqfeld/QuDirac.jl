@@ -10,22 +10,22 @@ brrep(str) = "bra("*str[2:end-1]*")"
 
 function inrep(str)
     i = split(str, '|')
-    return "(bra("i[1][2:end]")*ket("*i[2][1:end-1]*"))"
+    return "(bra("*i[1][2:end]*")*ket("*i[2][1:end-1]*"))"
 end
 
 function prune_dirac(str)
-    return replace(replace(replace(str, inpat, inrep), brpat, brrep), ktpat, ktrep)
+    return replace(replace(replace(str, inpat => inrep), brpat => brrep), ktpat => ktrep)
 end
 
 macro d_str(str)
-    return esc(parse(prune_dirac(str)))
+    return esc(Meta.parse(prune_dirac(str)))
 end
 
 macro d_mstr(str)
     return esc(quote
         local s;
         for s in filter(x -> ! isempty(x), split(strip($str), '\n'))
-            eval(parse(QuDirac.prune_dirac(s)))
+            eval(Meta.parse(QuDirac.prune_dirac(s)))
         end
     end)
 end
@@ -33,7 +33,7 @@ end
 ###################################
 # Definition String Parsing Utils #
 ###################################
-immutable OpDefStr
+struct OpDefStr
     op_name::AbstractString
     label_args::AbstractString
     lhs_type::AbstractString
@@ -44,9 +44,9 @@ function OpDefStr(str::AbstractString)
     str = rm_whspace(str)
     left, right = @compat(split(str, '=', limit=2))
 
-    if ismatch(ktpat, left)
+    if occursin(ktpat, left)
         lhs_type = "Ket"
-    elseif ismatch(brpat, left)
+    elseif occursin(brpat, left)
         lhs_type = "Bra"
     else
         error("Couldn't detect whether operator is acting on Bra or Ket...")
@@ -61,14 +61,14 @@ function OpDefStr(str::AbstractString)
     return OpDefStr(op_name, label_args, lhs_type, prune_dirac(right))
 end
 
-immutable OpDefExpr
+struct OpDefExpr
     op_sym::Symbol
-    label_args::Union(Symbol, Expr)
+    label_args::Union{Symbol, Expr}
     lhs_type::Symbol
-    rhs::Union(Symbol, Expr)
+    rhs::Union{Symbol, Expr}
 end
 
-OpDefExpr(ods::OpDefStr) = OpDefExpr(symbol(ods.op_name), parse(ods.label_args), symbol(ods.lhs_type), parse(ods.rhs))
+OpDefExpr(ods::OpDefStr) = OpDefExpr(Symbol(ods.op_name), Meta.parse(ods.label_args), Symbol(ods.lhs_type), Meta.parse(ods.rhs))
 
 rm_whspace(str) = join(split(str, r"\s"))
 
@@ -120,7 +120,7 @@ function def_op_expr(ods::OpDefStr)
         $func_on_label_def
 
         local func_on_pair;
-        function func_on_pair(pair::Tuple)
+        function func_on_pair(pair::Pair)
           label, c = pair
           return $(coeff) * func_on_label(label)
         end  

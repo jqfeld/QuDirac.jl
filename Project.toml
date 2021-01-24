@@ -1,0 +1,9 @@
+name = "QuDirac"
+uuid = "46bdffd0-aaad-4079-8f7a-00cc9e7e6ed9"
+authors = ["Jan Kuhfeld <jan.kuhfeld@rub.de>"]
+version = "0.1.0"
+
+[deps]
+Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"

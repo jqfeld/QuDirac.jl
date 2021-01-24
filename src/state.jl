@@ -1,25 +1,25 @@
 ###########
 # Ket/Bra #
 ###########
-typealias StateDict{N,T} Dict{StateLabel{N},T}
+const StateDict{N,T} = Dict{StateLabel{N},T}
 
-type Ket{P,N,T} <: DiracState{P,N}
+struct Ket{P,N,T} <: DiracState{P,N}
     ptype::P
     dict::StateDict{N,T}
-    Ket(ptype, dict) = new(ptype, dict)
-    Ket(ptype, dict::StateDict{0}) = error("Cannot construct a 0-factor state.")
 end
 
-Ket{P,N,T}(ptype::P, dict::StateDict{N,T}) = Ket{P,N,T}(ptype, dict)
+Ket(ptype, dict::StateDict{0}) = error("Cannot construct a 0-factor state.")
+# Ket(ptype::P, dict::StateDict{N,T}) where {P,N,T} = Ket{P,N,T}(ptype, dict)
+Ket(ptype::P, label::StateLabel{N}) where {P, N} = Ket{P,N,Real}(ptype, Dict(label => 1))
 
-ket(ptype::AbstractInner, label::StateLabel) = Ket(ptype, @compat(Dict(label => 1)))
-ket(ptype::AbstractInner, items...) = ket(ptype, StateLabel(items))
+ket(ptype::AbstractInner, label::StateLabel) = Ket(ptype, Dict(label => 1))
+ket(ptype::AbstractInner, items...) = Ket(ptype, StateLabel(items))
 
-type Bra{P,N,T} <: DiracState{P,N}
+struct Bra{P,N,T} <: DiracState{P,N}
     kt::Ket{P,N,T}
 end
 
-Bra{P,N,T}(kt::Ket{P,N,T}) = Bra{P,N,T}(kt)
+# Bra(kt::Ket{P,N,T}) where {P,N,T} = Bra{P,N,T}(kt)
 Bra(items...) = Bra(Ket(items...))
 bra(items...) = Bra(ket(items...))
 
@@ -35,8 +35,8 @@ ptype(b::Bra) = ptype(b.kt)
 #######################
 # Dict-Like Functions #
 #######################
-Base.eltype{P,N,T}(::Ket{P,N,T}) = T
-Base.eltype{P,N,T}(::Bra{P,N,T}) = T
+Base.eltype(::Ket{P,N,T}) where {P,N,T} = T
+Base.eltype(::Bra{P,N,T}) where {P,N,T} = T
 
 Base.copy(kt::Ket) = Ket(ptype(kt), copy(dict(kt)))
 Base.copy(br::Bra) = Bra(copy(br.kt))
@@ -44,10 +44,10 @@ Base.copy(br::Bra) = Bra(copy(br.kt))
 Base.similar(kt::Ket, d=similar(dict(kt)); P=ptype(kt)) = Ket(P, d)
 Base.similar(br::Bra, d=similar(dict(br)); P=ptype(br)) = Bra(P, d)
 
-Base.(:(==)){P,N}(a::Ket{P,N}, b::Ket{P,N}) = ptype(a) == ptype(b) && dict(filternz(a)) == dict(filternz(b))
-Base.(:(==)){P,N}(a::Bra{P,N}, b::Bra{P,N}) = a.kt == b.kt
+Base.:(==)(a::Ket{P,N}, b::Ket{P,N}) where {P,N} = ptype(a) == ptype(b) && dict(filternz(a)) == dict(filternz(b))
+Base.:(==)(a::Bra{P,N}, b::Bra{P,N}) where {P,N} = a.kt == b.kt
 Base.hash(s::DiracState) = hash(dict(filternz(s)), hash(ptype(s)))
-Base.hash(s::DiracState, h::Uint64) = hash(hash(s), h)
+Base.hash(s::DiracState, h::UInt64) = hash(hash(s), h)
 
 Base.length(s::DiracState) = length(dict(s))
 
@@ -72,7 +72,7 @@ Base.delete!(s::DiracState, label::StateLabel) = (delete!(dict(s), label); retur
 Base.delete!(s::DiracState, label) = delete!(s, StateLabel(label))
 
 Base.collect(kt::Ket) = collect(dict(kt))
-Base.collect{P,N,T}(br::Bra{P,N,T}) = collect_pairs!(Array((StateLabel{N}, T), length(br)), br)
+Base.collect(br::Bra{P,N,T}) where {P,N,T} = collect_pairs!(Array((StateLabel{N}, T), length(br)), br)
 
 function collect_pairs!(result, br::Bra)
     i = 1
@@ -83,33 +83,33 @@ function collect_pairs!(result, br::Bra)
     return result
 end
 
-Base.start(state::DiracState) = start(dict(state))
-Base.next(kt::Ket, i) = next(dict(kt), i)
+Base.iterate(state::DiracState) = iterate(dict(state))
+Base.iterate(kt::Ket, i) = iterate(dict(kt), i)
 
-function Base.next(br::Bra, i)
-    (k,v), n = next(dict(br), i)
+function Base.iterate(br::Bra, i)
+    (k,v), n = iterate(dict(br), i)
     return ((k,v'), n)
 end
 
-Base.done(state::DiracState, i) = done(dict(state), i)
+# Base.done(state::DiracState, i) = done(dict(state), i)
 Base.first(state::DiracState) = next(state, start(state))
 
 ##############
 # ctranspose #
 ##############
-Base.ctranspose(k::Ket) = Bra(k)
-Base.ctranspose(b::Bra) = b.kt
+Base.adjoint(k::Ket) = Bra(k)
+Base.adjoint(b::Bra) = b.kt
 
 #########
 # inner #
 #########
-inner_coefftype{P}(a::AbstractDirac{P}, b::AbstractDirac{P}) = promote_type(eltype(a), eltype(b), inner_rettype(ptype(a)))
-predict_zero{T}(::Type{T}) = zero(T)
+inner_coefftype(a::AbstractDirac{P}, b::AbstractDirac{P}) where {P} = promote_type(eltype(a), eltype(b), inner_rettype(ptype(a)))
+predict_zero(::Type{T}) where {T} = zero(T)
 predict_zero(::Type{Any}) = 0
 
 inner(br::Bra, kt::Ket) = error("inner(b::Bra,k::Ket) is only defined when nfactors(b) == nfactors(k)")
 
-function inner{P,N,T1,T2}(br::Bra{P,N,T1}, kt::Ket{P,N,T2})
+function inner(br::Bra{P,N,T1}, kt::Ket{P,N,T2}) where {P,N,T1,T2}
     result = predict_zero(inner_coefftype(br, kt))
     prodtype = ptype(kt)
     for (b,c) in dict(br), (k,v) in dict(kt)
@@ -128,7 +128,7 @@ function ortho_inner(a::DiracState{KroneckerDelta}, b::DiracState{KroneckerDelta
     return result
 end
 
-function inner{N}(br::Bra{KroneckerDelta,N}, kt::Ket{KroneckerDelta,N})
+function inner(br::Bra{KroneckerDelta,N}, kt::Ket{KroneckerDelta,N}) where {N}
     if length(br) < length(kt)
         return ortho_inner(kt, br)
     else
@@ -136,7 +136,7 @@ function inner{N}(br::Bra{KroneckerDelta,N}, kt::Ket{KroneckerDelta,N})
     end
 end
 
-Base.(:*)(br::Bra, kt::Ket) = inner(br,kt)
+Base.:*(br::Bra, kt::Ket) = inner(br,kt)
 
 inner_eval(f, s::DiracState) = mapcoeffs(x->inner_eval(f,x),s)
 
@@ -145,9 +145,9 @@ inner_eval(f, s::DiracState) = mapcoeffs(x->inner_eval(f,x),s)
 ##########
 act_on(kt::Ket, br::Bra, i) = act_on(kt', br', i)'
 
-act_on{P}(br::Bra{P,1}, kt::Ket{P,1}, i) = i==1 ? inner(br, kt) : throw(BoundsError())
+act_on(br::Bra{P,1}, kt::Ket{P,1}, i) where {P} = i==1 ? inner(br, kt) : throw(BoundsError())
 
-function act_on{P,N,A,B}(br::Bra{P,1,A}, kt::Ket{P,N,B}, i)
+function act_on(br::Bra{P,1,A}, kt::Ket{P,N,B}, i) where {P,N,A,B}
     prodtype = ptype(br)
     result = StateDict{N-1, inner_coefftype(br,kt)}()
     return Ket(prodtype, act_on_dict!(result, br, kt, i, prodtype))
@@ -163,52 +163,53 @@ end
 ###########
 # Scaling #
 ###########
-Base.scale!(k::Ket, c::Number) = (dscale!(dict(k), c); return k)
-Base.scale!(c::Number, k::Ket) = scale!(k,c)
-Base.scale!(b::Bra, c::Number) = Bra(scale!(b.kt, c'))
-Base.scale!(c::Number, b::Bra) = scale!(b,c)
+# dscale!(d::Dict, c::Number) = (d.vals .*= c; return d)
+scale!(k::Ket, c::Number) = (dscale!(dict(k), c); return k)
+scale!(c::Number, k::Ket) = scale!(k,c)
+scale!(b::Bra, c::Number) = Bra(scale!(b.kt, c'))
+scale!(c::Number, b::Bra) = scale!(b,c)
 
-Base.scale(k::Ket, c::Number) = similar(k, dscale(dict(k), c))
-Base.scale(c::Number, k::Ket) = scale(k,c)
-Base.scale(b::Bra, c::Number) = Bra(scale(b.kt, c'))
-Base.scale(c::Number, b::Bra) = scale(b,c)
+scale(k::Ket, c::Number) = similar(k, dscale(dict(k), c))
+scale(c::Number, k::Ket) = scale(k,c)
+scale(b::Bra, c::Number) = Bra(scale(b.kt, c'))
+scale(c::Number, b::Bra) = scale(b,c)
 
-Base.(:*)(c::Number, s::DiracState) = scale(c, s)
-Base.(:*)(s::DiracState, c::Number) = scale(s, c)
-Base.(:/)(s::DiracState, c::Number) = scale(s, 1/c)
+Base.:*(c::Number, s::DiracState) = scale(c, s)
+Base.:*(s::DiracState, c::Number) = scale(s, c)
+Base.:/(s::DiracState, c::Number) = scale(s, 1/c)
 
 ###########
 # + and - #
 ###########
-Base.(:-){P,N}(kt::Ket{P,N}) = -1 * kt
-Base.(:-)(br::Bra) = Bra(-br.kt)
+Base.:-(kt::Ket{P,N}) where {P,N} = -1 * kt
+Base.:-(br::Bra) = Bra(-br.kt)
 
-Base.(:+){P,N}(a::Ket{P,N}, b::Ket{P,N}) = similar(b, add_merge(dict(a), dict(b)))
-Base.(:-){P,N}(a::Ket{P,N}, b::Ket{P,N}) = similar(b, sub_merge(dict(a), dict(b)))
+Base.:+(a::Ket{P,N}, b::Ket{P,N}) where {P,N} = similar(b, add_merge(dict(a), dict(b)))
+Base.:-(a::Ket{P,N}, b::Ket{P,N}) where {P,N} = similar(b, sub_merge(dict(a), dict(b)))
 
-Base.(:+)(a::Bra, b::Bra) = Bra(a.kt + b.kt)
-Base.(:-)(a::Bra, b::Bra) = Bra(a.kt - b.kt)
+Base.:+(a::Bra, b::Bra) = Bra(a.kt + b.kt)
+Base.:-(a::Bra, b::Bra) = Bra(a.kt - b.kt)
 
 ##########
 # tensor #
 ##########
-tensor{P}(a::Ket{P}, b::Ket{P}) = Ket(ptype(b), tensordict(dict(a), dict(b)))
+tensor(a::Ket{P}, b::Ket{P}) where {P} = Ket(ptype(b), tensordict(dict(a), dict(b)))
 tensor(a::Bra, b::Bra) = tensor(a.kt, b.kt)'
 
-Base.(:*)(a::Ket, b::Ket) = tensor(a,b)
-Base.(:*)(a::Bra, b::Bra) = tensor(a,b)
+Base.:*(a::Ket, b::Ket) = tensor(a,b)
+Base.:*(a::Bra, b::Bra) = tensor(a,b)
 
 #################
 # Normalization #
 #################
-Base.norm(s::DiracState) = sqrt(sum(abs2, values(dict(s))))
+norm(s::DiracState) = sqrt(sum(abs2, values(dict(s))))
 normalize(s::DiracState) = (1/norm(s))*s
 normalize!(s::DiracState) = scale!(1/norm(s), s)
 
 ########################
 # Misc. Math Functions #
 ########################
-nfactors{P,N}(::DiracState{P,N}) = N
+nfactors(::DiracState{P,N}) where {P,N} = N
 xsubspace(s::DiracState, x) = similar(s, filter((k,v)->is_sum_x(k,x), dict(s)))
 switch(s::DiracState, i, j) = maplabels(label->switch(label,i,j), s)
 permute(s::DiracState, perm::Vector) = maplabels(label->permute(label,perm), s)
@@ -234,12 +235,12 @@ vecrep(br::Bra, labels...) = vecrep(br', labels...)'
 purity(kt::Ket) = purity(kt*kt')
 purity(br::Bra) = purity(br.kt)
 
-ladderdict{P,N}(state::DiracState{P,N}) = StateDict{N, promote_type(Float64, eltype(state))}()
+ladderdict(state::DiracState{P,N}) where {P,N} = StateDict{N, promote_type(Float64, eltype(state))}()
 
-lower{P}(state::DiracState{P,1}) = lower(state, 1)
+lower(state::DiracState{P,1}) where {P} = lower(state, 1)
 lower(state::DiracState, i) = similar(state, lowerdict!(ladderdict(state), dict(state), i))
 
-raise{P}(state::DiracState{P,1}) = raise(state, 1)
+raise(state::DiracState{P,1}) where {P} = raise(state, 1)
 raise(state::DiracState, i) = similar(state, raisedict!(ladderdict(state), dict(state), i))
 
 function lowerdict!(result, d, i)
@@ -267,7 +268,7 @@ labelrepr(br::Bra, label, pad) = "$pad$(br[label]) $(brstr(label))"
 
 Base.summary(s::DiracState) = "$(typeof(s)) with $(length(s)) state(s)"
 Base.show(io::IO, s::DiracState) = dirac_show(io, s)
-Base.showcompact(io::IO, s::DiracState) = dirac_showcompact(io, s)
+# Base.showcompact(io::IO, s::DiracState) = dirac_showcompact(io, s)
 Base.repr(s::DiracState) = dirac_repr(s)
 
 export Ket,

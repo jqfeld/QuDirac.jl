@@ -1,10 +1,11 @@
 module QuDirac
     
     using Compat
-    using Iterators.product
+    import Base.Iterators.product
+    import LinearAlgebra
 
     if !(v"0.3-" <= VERSION < v"0.4-")
-        warn("QuDirac v0.1 only officially supports the v0.3 release of Julia. Your version of Julia is $VERSION.")
+        @warn("QuDirac v0.1 only officially supports the v0.3 release of Julia. Your version of Julia is $VERSION.")
     end
     
     ####################
@@ -18,16 +19,16 @@ module QuDirac
     ##################
     # Abstract Types #
     ##################
-    abstract AbstractInner
+    abstract type AbstractInner end
     
-    immutable UndefinedInner <: AbstractInner end 
-    immutable KroneckerDelta <: AbstractInner end
+    struct UndefinedInner <: AbstractInner end 
+    struct KroneckerDelta <: AbstractInner end
     
-    abstract AbstractDirac{P<:AbstractInner,N}
-    abstract DiracOp{P,N} <: AbstractDirac{P,N}
-    abstract DiracState{P,N} <: AbstractDirac{P,N}
+    abstract type AbstractDirac{P<:AbstractInner,N} end
+    abstract type DiracOp{P,N} <: AbstractDirac{P,N} end
+    abstract type DiracState{P,N} <: AbstractDirac{P,N} end
 
-    abstract DiracScalar <: Number
+    abstract type DiracScalar <: Number end
 
     #############
     # Functions #
@@ -53,30 +54,27 @@ module QuDirac
     #################
     # default_inner #
     #################
-    # Julia doesn't recompile functions within other 
-    # previously compiled functions, so we can't have a 
-    # get_default_inner() or something like that.
-    #
-    # Also, global optimization is poor, so we don't want
-    # to use that either. Thus, we go for a function that
-    # straight-up redefines the default constructors for 
-    # the relevant objects. This is hacky, but works for now, 
-    # seeing as how only a few functions actually "use" 
-    # the default ptype.
-    function default_inner(ptype::AbstractInner)
-        QuDirac.OpSum(dict::Dict) = OpSum(ptype, dict)
-        QuDirac.Ket(dict::Dict) = Ket(ptype, dict)
-        QuDirac.ket(label::StateLabel) = ket(ptype, label)
-        QuDirac.ket(items...) = ket(ptype, StateLabel(items))
-        info("QuDirac's default inner product type is currently $ptype")
+    # DEFAULT_INNER = KroneckerDelta
+   
+    DEFAULT_INNER = KroneckerDelta()
+    default_inner() = DEFAULT_INNER
+    function default_inner!(ptype::T) where T<:AbstractInner 
+        global DEFAULT_INNER = ptype
     end
 
-    default_inner(KroneckerDelta());
+    default_inner!(KroneckerDelta())
+
+    OpSum(dict::Dict) = OpSum(default_inner(), dict)
+    Ket(dict::Dict) = Ket(default_inner(), dict)
+    ket(label::StateLabel) = Ket(default_inner(), label)
+    ket(items...) = Ket(default_inner(), StateLabel(items))
+
 
     export AbstractInner,
         UndefinedInner,
         KroneckerDelta,
         default_inner,
+        default_inner!,
         AbstractDirac,
         DiracState,
         DiracOp,
